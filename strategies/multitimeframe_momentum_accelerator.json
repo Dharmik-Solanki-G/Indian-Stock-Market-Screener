@@ -1,0 +1,177 @@
+{
+  "name": "Multi-Timeframe Momentum Accelerator",
+  "description": "This strategy identifies stocks in a strong, established uptrend across daily, weekly, and monthly timeframes. It uses a hierarchy of Weighted Moving Averages (WMAs) to ensure that short-term price action is accelerating and is supported by longer-term trends. The strategy also includes price filters to focus on stocks between \u20b920 and \u20b9400.",
+  "conditions": [
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "daily",
+        "offset": 0,
+        "params": {
+          "period": 1
+        }
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "monthly",
+        "offset": 0,
+        "params": {
+          "period": 2
+        },
+        "add_offset": 1.0
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "monthly",
+        "offset": 0,
+        "params": {
+          "period": 2
+        }
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "monthly",
+        "offset": 0,
+        "params": {
+          "period": 4
+        },
+        "add_offset": 2.0
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "daily",
+        "offset": 0,
+        "params": {
+          "period": 1
+        }
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "weekly",
+        "offset": 0,
+        "params": {
+          "period": 6
+        },
+        "add_offset": 2.0
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "weekly",
+        "offset": 0,
+        "params": {
+          "period": 6
+        }
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "weekly",
+        "offset": 0,
+        "params": {
+          "period": 12
+        },
+        "add_offset": 2.0
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "daily",
+        "offset": 0,
+        "params": {
+          "period": 1
+        }
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "daily",
+        "offset": 4,
+        "params": {
+          "period": 12
+        },
+        "add_offset": 2.0
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "daily",
+        "offset": 0,
+        "params": {
+          "period": 1
+        }
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "wma",
+        "timeframe": "daily",
+        "offset": 2,
+        "params": {
+          "period": 20
+        },
+        "add_offset": 2.0
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "close",
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "value",
+        "value": 20.0
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "close",
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": "<=",
+      "rhs": {
+        "type": "value",
+        "value": 400.0
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "close",
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": "<=",
+      "rhs": {
+        "type": "value",
+        "value": 400.0
+      }
+    }
+  ]
+}

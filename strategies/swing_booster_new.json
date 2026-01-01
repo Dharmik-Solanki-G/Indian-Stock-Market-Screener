@@ -1,0 +1,55 @@
+{
+  "name": "Swing Booster (Chartink-like)",
+  "description": "A complex multi-timeframe WMA strategy.",
+  "conditions": [
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "wma",
+        "params": {
+          "period": 1
+        },
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "wma",
+        "params": {
+          "period": 2
+        },
+        "timeframe": "monthly",
+        "offset": 1
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "close",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "value",
+        "value": 20
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "close",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": "<=",
+      "rhs": {
+        "type": "value",
+        "value": 400
+      }
+    }
+  ]
+}

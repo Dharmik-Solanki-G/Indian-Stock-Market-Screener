@@ -1,0 +1,55 @@
+{
+  "name": "Momentum Gain",
+  "description": "RSI and EMA-based momentum strategy.",
+  "conditions": [
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "rsi",
+        "params": {
+          "period": 14
+        },
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "value",
+        "value": 60
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "close",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "ema",
+        "params": {
+          "period": 50
+        },
+        "timeframe": "daily",
+        "offset": 0
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "volume",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "value",
+        "value": 100000
+      }
+    }
+  ]
+}
