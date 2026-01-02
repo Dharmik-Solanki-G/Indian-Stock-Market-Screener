@@ -673,7 +673,7 @@ def create_strategy_editor():
     message_container = st.empty()
 
     # Form to add a new condition
-    with st.container(border=True):
+    with st.container():
         # Use the form_id to create unique keys for widgets, allowing the form to "reset"
         form_key = st.session_state.form_id
         
@@ -901,7 +901,7 @@ def main():
                 # --- START OF CHANGE ---
                 st.dataframe(results_df, use_container_width=True, hide_index=True,
                     column_config={
-                        "TradingView": st.column_config.LinkColumn("Chart Link", display_text="📊 View Chart"),
+                        "TradingView": st.column_config.LinkColumn("Chart Link"),
                         "Price": st.column_config.NumberColumn("Price (₹)", format="%.2f"),
                         "%Chg": st.column_config.NumberColumn("% Change", format="%.2f%%"),
                         "Volume": st.column_config.NumberColumn(format="%d")
