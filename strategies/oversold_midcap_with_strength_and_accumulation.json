@@ -1,0 +1,113 @@
+{
+  "name": "Oversold Mid-Cap with Strength and Accumulation",
+  "description": "Identifies mid-cap stocks priced between 50 rupees and 500 rupees that are oversold (RSI < 30), have underlying strength (price above 50-day EMA), show accumulation (today's volume is at least 50% higher than the 20-day average), and are in a trending market (ADX > 20).",
+  "conditions": [
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "rsi",
+        "params": {
+          "period": 14
+        },
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": "<",
+      "rhs": {
+        "type": "value",
+        "value": 30
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "close",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "ema",
+        "params": {
+          "period": 50,
+          "type": "exponential"
+        },
+        "timeframe": "daily",
+        "offset": 0
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "volume",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "volume_sma",
+        "params": {
+          "period": 20
+        },
+        "timeframe": "daily",
+        "offset": 0,
+        "multiplier": 1.5
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "adx",
+        "params": {
+          "period": 14
+        },
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "value",
+        "value": 20
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "close",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">=",
+      "rhs": {
+        "type": "value",
+        "value": 50
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "close",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": "<=",
+      "rhs": {
+        "type": "value",
+        "value": 500
+      }
+    }
+  ],
+  "_metadata": {
+    "created_at": "2026-01-05T12:14:51.691732",
+    "source": "nl_conversion",
+    "original_query": "Find mid-cap stocks priced between 50 rupees and 500 rupees where the 14-period RSI is below 30 indicating oversold conditions, the current price is trading above the 50-day exponential moving average showing underlying strength, today's trading volume is at least 50% higher than the 20-day volume average showing accumulation, and the 14-period ADX is above 20 indicating a trending market",
+    "model_used": "mistral:latest",
+    "ai_explanation": "Explanation for the given trading strategy:\n\n1. RSI (Relative Strength Index) less than 30: This condition looks for stocks that are considered oversold based on their price action over the past 14 days. When a stock's RSI falls below 30, it indicates that the stock has experienced a significant decline and may be due for a rebound.\n\n2. Close price above the 50-day Exponential Moving Average (EMA): This condition checks if the current closing price of a stock is higher than its 50-day EMA. A higher close price compared to the EMA suggests underlying strength in the stock, as it indicates an upward trend.\n\n3. Today's volume is at least 50% higher than the 20-day Simple Moving Average (SMA) of volume: This condition identifies stocks that have seen increased trading activity relative to their recent average volume. An increase in volume can indicate accumulation or distribution by investors, which may signal a potential change in trend.\n\n4. ADX (Average Directional Index) greater than 20: This condition looks for stocks that are in a strong trending market, as the ADX measures the strength of a trend. A value above 20 indicates a strong trend, which can be either an uptrend or a downtrend.\n\n5. Close price greater than or equal to 50 rupees: This condition filters out stocks with prices below 50 rupees, ensuring that only mid-cap stocks are considered.\n\n6. Close price less than or equal to 500 rupees: This condition sets an upper limit for the stock prices, keeping the strategy focused on mid-cap stocks.\n\nOverall, this trading strategy is designed to identify mid-cap stocks that are oversold and show underlying strength, increased accumulation, and are in a strong trending market. By focusing on these conditions, the strategy aims to find potential investment opportunities in undervalued mid-cap stocks."
+  }
+}

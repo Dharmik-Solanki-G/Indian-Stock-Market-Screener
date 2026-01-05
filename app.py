@@ -344,43 +344,51 @@ class StockScreener:
                     json.dump(strategy, f, indent=2)
 
     def get_stock_data(self, symbol: str, period: str = "2y") -> Optional[pd.DataFrame]:
-        """Fetch stock data with caching. Increased period to 2y for better indicator calculation."""
+        """Fetch stock data with caching. Falls back to cache if Yahoo Finance fails."""
         cache_file = os.path.join(CACHE_DIR, f"{symbol.replace('.NS', '')}.csv")
-        if os.path.exists(cache_file):
-            cache_time = os.path.getmtime(cache_file)
-            if time.time() - cache_time < 86400: # 24 hours
+        
+        # Helper function to load from cache
+        def load_from_cache():
+            if os.path.exists(cache_file):
                 try:
                     return pd.read_csv(cache_file, parse_dates=['Date'], index_col='Date')
                 except Exception:
                     pass
+            return None
         
+        # Check if we have a fresh cache (less than 24 hours old)
+        if os.path.exists(cache_file):
+            cache_time = os.path.getmtime(cache_file)
+            if time.time() - cache_time < 86400:  # 24 hours
+                cached_data = load_from_cache()
+                if cached_data is not None:
+                    return cached_data
+        
+        # Try to fetch from Yahoo Finance
         try:
             data = yf.download(symbol, period=period, progress=False, auto_adjust=True)
             if not data.empty:
-                # --- START OF THE NEW, MORE ROBUST FIX ---
-
-                # 1. Handle potential MultiIndex columns by taking the first level.
-                # If columns are [('Open', ''), ('High', '')], this makes them ['Open', 'High'].
-                # If columns are already ['Open', 'High'], this does nothing.
+                # Handle potential MultiIndex columns by taking the first level.
                 if isinstance(data.columns, pd.MultiIndex):
                     data.columns = data.columns.get_level_values(0)
 
-                # 2. Standardize column names to PascalCase (e.g., 'open' -> 'Open').
-                # This ensures consistency for the rest of the app.
+                # Standardize column names to PascalCase (e.g., 'open' -> 'Open').
                 data.columns = [str(col).capitalize() for col in data.columns]
                 
-                # --- END OF THE NEW FIX ---
-                
                 data.to_csv(cache_file)
-                # No need to print success for every stock, it clutters the terminal.
-                # You can uncomment the line below if you want verbose logging.
-                # print(f"✅ Fetched data for {symbol} from Yahoo Finance")
                 return data
-                
-            return None
         except Exception as e:
-            print(f"❌ Could not fetch data for {symbol}: {e}")
-            return None
+            # Yahoo Finance failed, will fall back to cache
+            pass
+        
+        # Fall back to cached data (even if older than 24 hours)
+        cached_data = load_from_cache()
+        if cached_data is not None:
+            return cached_data
+        
+        # No data available at all
+        print(f"❌ No data available for {symbol} (Yahoo failed and no cache)")
+        return None
 
     def _calculate_single_indicator(self, df: pd.DataFrame, name: str, params: Dict) -> Optional[pd.Series]:
         """Calculates a single indicator on demand based on its name and parameters."""
@@ -554,7 +562,16 @@ class StockScreener:
                     current_price = price_data # It's already a single value
                     
                 if price_min <= current_price <= price_max:
-                    if self.evaluate_strategy(data, strategy):
+                    # DEBUG: Log first 5 stocks being evaluated
+                    if i < 5:
+                        print(f"🔍 DEBUG [{symbol}]: Price={current_price}, evaluating strategy...")
+                    
+                    strategy_passed = self.evaluate_strategy(data, strategy)
+                    
+                    if i < 5:
+                        print(f"🔍 DEBUG [{symbol}]: Strategy result = {strategy_passed}")
+                    
+                    if strategy_passed:
                         latest = data.iloc[-1]
 
                         # --- START OF CHANGE ---
@@ -806,6 +823,321 @@ def create_strategy_editor():
 
 
 # ==============================================================================
+# AI STRATEGY BUILDER - Natural Language to JSON Conversion
+# ==============================================================================
+def create_ai_strategy_builder(screener):
+    """AI-powered strategy builder using Ollama for natural language conversion."""
+    st.header("🤖 AI Strategy Builder")
+    st.caption("Convert natural language descriptions or strategy documents into executable screening strategies using local AI.")
+    
+    # Try to import OllamaClient
+    try:
+        from ollama_client import OllamaClient, extract_text_from_file
+        ollama_available = True
+    except ImportError as e:
+        ollama_available = False
+        st.error(f"❌ Ollama client module not found: {e}")
+        st.info("Please ensure ollama_client.py is in the same directory.")
+        return
+    
+    # Initialize session state for AI builder
+    if 'ai_generated_strategy' not in st.session_state:
+        st.session_state.ai_generated_strategy = None
+    if 'ai_explanation' not in st.session_state:
+        st.session_state.ai_explanation = None
+    if 'ai_error' not in st.session_state:
+        st.session_state.ai_error = None
+    if 'ollama_client' not in st.session_state:
+        st.session_state.ollama_client = None
+    
+    # Ollama connection section
+    with st.expander("⚙️ Ollama Configuration", expanded=True):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            available_models = []
+            try:
+                temp_client = OllamaClient()
+                available_models = temp_client.get_available_models()
+            except:
+                pass
+            
+            if available_models:
+                model_options = available_models
+            else:
+                model_options = ["mistral:7b-instruct", "mistral", "llama2", "codellama", "llama3"]
+            
+            selected_model = st.selectbox(
+                "Select Model",
+                model_options,
+                index=0,
+                help="Choose the Ollama model for strategy conversion"
+            )
+        
+        with col2:
+            col2a, col2b = st.columns(2)
+            with col2a:
+                if st.button("🔗 Connect", use_container_width=True):
+                    with st.spinner("Connecting to Ollama..."):
+                        client = OllamaClient(model=selected_model)
+                        is_available, message = client.is_available()
+                        
+                        if is_available:
+                            st.session_state.ollama_client = client
+                            st.success("✅ Connected!")
+                        else:
+                            st.session_state.ollama_client = None
+                            st.error(f"❌ {message}")
+            
+            with col2b:
+                warmup_disabled = st.session_state.ollama_client is None
+                if st.button("🔥 Load Model", use_container_width=True, disabled=warmup_disabled, 
+                            help="Pre-load the model into memory for faster responses"):
+                    if st.session_state.ollama_client:
+                        with st.spinner("⏳ Loading model into memory (this may take 1-3 minutes on first run)..."):
+                            success, message = st.session_state.ollama_client.warmup_model()
+                            if success:
+                                st.success(f"✅ {message}")
+                            else:
+                                st.error(f"❌ {message}")
+        
+        # Show connection status
+        if st.session_state.ollama_client:
+            st.success(f"🟢 Connected to Ollama using model: **{st.session_state.ollama_client.model}**")
+            st.info("💡 **Tip**: Click 'Load Model' first to pre-load the model. The first request may take 1-3 minutes if the model isn't loaded.")
+        else:
+            st.warning("🟡 Not connected to Ollama. Click 'Connect' to establish connection.")
+            st.info("💡 Make sure Ollama is running: `ollama serve`")
+    
+    st.markdown("---")
+    
+    # Input mode selection
+    input_mode = st.radio(
+        "Choose Input Method",
+        ["📝 Natural Language", "📄 Upload Document"],
+        horizontal=True
+    )
+    
+    if input_mode == "📝 Natural Language":
+        # Natural Language Input
+        st.subheader("Describe Your Strategy")
+        
+        # Example prompts
+        with st.expander("💡 Example prompts"):
+            st.markdown("""
+            - "Find stocks with RSI below 30 and rising volume over last 5 days"
+            - "Stocks trading above 200 EMA with strong ADX above 25"
+            - "Golden cross stocks with price between 100 and 500"
+            - "Weekly breakout above Bollinger upper band with 2x volume"
+            - "Oversold mid-cap stocks with bullish MACD crossover"
+            """)
+        
+        nl_input = st.text_area(
+            "Enter your strategy description:",
+            placeholder="e.g., Find profitable mid-cap stocks with RSI less than 30 and rising volume of last 5 days",
+            height=120,
+            key="nl_input"
+        )
+        
+        generate_btn = st.button("🚀 Generate Strategy", type="primary", use_container_width=True, 
+                                  disabled=not st.session_state.ollama_client)
+        
+        if generate_btn and nl_input.strip():
+            if not st.session_state.ollama_client:
+                st.error("Please connect to Ollama first!")
+            else:
+                with st.spinner("🤖 AI is analyzing your request..."):
+                    success, strategy, explanation, error = st.session_state.ollama_client.parse_strategy_from_nl(nl_input)
+                    
+                    if success:
+                        st.session_state.ai_generated_strategy = strategy
+                        st.session_state.ai_explanation = explanation
+                        st.session_state.ai_error = None
+                        
+                        # Add metadata
+                        st.session_state.ai_generated_strategy['_metadata'] = {
+                            'created_at': datetime.now().isoformat(),
+                            'source': 'nl_conversion',
+                            'original_query': nl_input,
+                            'model_used': st.session_state.ollama_client.model
+                        }
+                    else:
+                        st.session_state.ai_generated_strategy = None
+                        st.session_state.ai_explanation = None
+                        st.session_state.ai_error = error
+    
+    else:  # Document Upload
+        st.subheader("Upload Strategy Document")
+        
+        uploaded_file = st.file_uploader(
+            "Upload a document containing strategy description",
+            type=['txt', 'pdf', 'docx'],
+            help="Supported formats: TXT, PDF, DOCX"
+        )
+        
+        if uploaded_file:
+            # Save temporarily and extract text
+            temp_path = os.path.join(CACHE_DIR, f"temp_{uploaded_file.name}")
+            
+            with open(temp_path, 'wb') as f:
+                f.write(uploaded_file.getbuffer())
+            
+            try:
+                document_text = extract_text_from_file(temp_path)
+                
+                with st.expander("📄 Extracted Text Preview", expanded=False):
+                    st.text_area("Document content:", document_text[:2000] + ("..." if len(document_text) > 2000 else ""), height=200, disabled=True)
+                
+                if st.button("🚀 Generate Strategy from Document", type="primary", use_container_width=True,
+                             disabled=not st.session_state.ollama_client):
+                    if not st.session_state.ollama_client:
+                        st.error("Please connect to Ollama first!")
+                    else:
+                        with st.spinner("🤖 AI is analyzing the document..."):
+                            success, strategies, explanations, error = st.session_state.ollama_client.parse_strategy_from_document(document_text)
+                            
+                            if success and strategies:
+                                st.session_state.ai_generated_strategy = strategies[0]
+                                st.session_state.ai_explanation = explanations[0] if explanations else ""
+                                st.session_state.ai_error = None
+                                
+                                # Add metadata
+                                st.session_state.ai_generated_strategy['_metadata'] = {
+                                    'created_at': datetime.now().isoformat(),
+                                    'source': 'document_upload',
+                                    'original_filename': uploaded_file.name,
+                                    'model_used': st.session_state.ollama_client.model
+                                }
+                            else:
+                                st.session_state.ai_generated_strategy = None
+                                st.session_state.ai_explanation = None
+                                st.session_state.ai_error = error
+                
+            except Exception as e:
+                st.error(f"Error processing document: {str(e)}")
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except:
+                        pass
+    
+    # Display error if any
+    if st.session_state.ai_error:
+        st.error(f"❌ Error: {st.session_state.ai_error}")
+        st.info("💡 Try rephrasing your request or check if Ollama is running.")
+    
+    # Display generated strategy
+    if st.session_state.ai_generated_strategy:
+        st.markdown("---")
+        st.subheader("📋 Generated Strategy")
+        
+        strategy = st.session_state.ai_generated_strategy
+        
+        # Display name and description
+        st.markdown(f"### {strategy.get('name', 'Unnamed Strategy')}")
+        st.caption(strategy.get('description', ''))
+        
+        # Display conditions
+        with st.expander("🔍 Strategy Conditions", expanded=True):
+            for i, cond in enumerate(strategy.get('conditions', []), 1):
+                if 'lhs' in cond and 'rhs' in cond:
+                    st.markdown(f"**{i}.** {format_condition_as_html(cond)}", unsafe_allow_html=True)
+        
+        # JSON Preview with edit capability
+        with st.expander("📝 JSON Preview (Editable)", expanded=False):
+            # Remove metadata for display
+            display_strategy = {k: v for k, v in strategy.items() if not k.startswith('_')}
+            json_str = json.dumps(display_strategy, indent=2)
+            
+            edited_json = st.text_area(
+                "Edit JSON if needed:",
+                json_str,
+                height=300,
+                key="json_editor"
+            )
+            
+            if st.button("✅ Apply Edits"):
+                try:
+                    edited_strategy = json.loads(edited_json)
+                    # Re-add metadata
+                    edited_strategy['_metadata'] = strategy.get('_metadata', {})
+                    st.session_state.ai_generated_strategy = edited_strategy
+                    st.success("Changes applied!")
+                    st.rerun()
+                except json.JSONDecodeError as e:
+                    st.error(f"Invalid JSON: {e}")
+        
+        # AI Explanation
+        if st.session_state.ai_explanation:
+            with st.expander("💡 AI Explanation", expanded=True):
+                st.markdown(st.session_state.ai_explanation)
+        
+        st.markdown("---")
+        
+        # Save options
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            strategy_name_input = st.text_input(
+                "Strategy Name",
+                value=strategy.get('name', 'AI Generated Strategy'),
+                key="ai_save_name"
+            )
+        
+        with col2:
+            if st.button("💾 Save Strategy", type="primary", use_container_width=True):
+                if strategy_name_input:
+                    # Update name
+                    save_strategy = st.session_state.ai_generated_strategy.copy()
+                    save_strategy['name'] = strategy_name_input
+                    
+                    # Add AI explanation to metadata
+                    if '_metadata' in save_strategy and st.session_state.ai_explanation:
+                        save_strategy['_metadata']['ai_explanation'] = st.session_state.ai_explanation
+                    
+                    # Save to file
+                    filename = "".join(c for c in strategy_name_input if c.isalnum() or c in ' _').rstrip().lower().replace(" ", "_")
+                    filepath = os.path.join(STRATEGIES_DIR, f"{filename}.json")
+                    
+                    with open(filepath, 'w') as f:
+                        json.dump(save_strategy, f, indent=2)
+                    
+                    st.success(f"✅ Strategy saved as '{strategy_name_input}'!")
+                    st.balloons()
+                    
+                    # Clear state and reload
+                    st.session_state.ai_generated_strategy = None
+                    st.session_state.ai_explanation = None
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error("Please enter a strategy name")
+        
+        with col3:
+            if st.button("🚀 Save & Run Screener", use_container_width=True):
+                if strategy_name_input:
+                    # Save first
+                    save_strategy = st.session_state.ai_generated_strategy.copy()
+                    save_strategy['name'] = strategy_name_input
+                    
+                    filename = "".join(c for c in strategy_name_input if c.isalnum() or c in ' _').rstrip().lower().replace(" ", "_")
+                    filepath = os.path.join(STRATEGIES_DIR, f"{filename}.json")
+                    
+                    with open(filepath, 'w') as f:
+                        json.dump(save_strategy, f, indent=2)
+                    
+                    st.success(f"✅ Strategy saved! Reload the app and select it to run the screener.")
+                    st.session_state.ai_generated_strategy = None
+                    st.session_state.ai_explanation = None
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error("Please enter a strategy name")
+
+
+# ==============================================================================
 # MAIN APP LAYOUT
 # ==============================================================================
 def main():
@@ -861,7 +1193,7 @@ def main():
 
         run_screener = st.button("🚀 Run Screener", type="primary", use_container_width=True)
     
-    tab1, tab2 = st.tabs(["📊 Screener Results", "⚙️ Strategy Editor"])
+    tab1, tab2, tab3 = st.tabs(["📊 Screener Results", "⚙️ Strategy Editor", "🤖 AI Strategy Builder"])
     
     def display_strategy_conditions(strategy_data):
         conditions = strategy_data.get('conditions', [])
@@ -932,6 +1264,9 @@ def main():
                             st.success(f"Strategy '{strategy_data.get('name')}' deleted.")
                             time.sleep(1)
                             st.rerun()
+    
+    with tab3:
+        create_ai_strategy_builder(screener)
 
 if __name__ == "__main__":
     main()

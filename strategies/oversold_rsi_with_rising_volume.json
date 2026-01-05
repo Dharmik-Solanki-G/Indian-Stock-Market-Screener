@@ -1,0 +1,60 @@
+{
+  "name": "Oversold RSI with Rising Volume",
+  "description": "Identifies stocks that are oversold (RSI < 30) with increasing volume over the past 5 days, indicating potential accumulation.",
+  "conditions": [
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "rsi",
+        "params": {
+          "period": 14
+        },
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": "<",
+      "rhs": {
+        "type": "value",
+        "value": 30
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "volume",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "indicator",
+        "name": "volume",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 5
+      }
+    },
+    {
+      "lhs": {
+        "type": "indicator",
+        "name": "close",
+        "params": {},
+        "timeframe": "daily",
+        "offset": 0
+      },
+      "operator": ">",
+      "rhs": {
+        "type": "value",
+        "value": 0
+      }
+    }
+  ],
+  "_metadata": {
+    "created_at": "2026-01-05T11:57:21.218808",
+    "source": "nl_conversion",
+    "original_query": "Find stocks with RSI below 30 and rising volume over last 5 days",
+    "model_used": "mistral:latest",
+    "ai_explanation": "The provided trading strategy is called \"Oversold RSI with Rising Volume.\" Here's a breakdown of the conditions in plain English:\n\n1. **RSI (Relative Strength Index) < 30**: This condition looks for stocks that are considered oversold, meaning they have experienced a significant price decline over a certain period (in this case, 14 days). When a stock is oversold, it may be undervalued and could potentially rebound.\n\n2. **Volume > Volume (5-day moving average)**: This condition looks for stocks with increasing volume over the past 5 days compared to their average daily trading volume during that same period. An increase in volume indicates a higher level of buying or selling activity, which can signal that institutions or large investors are accumulating shares or dumping them, respectively.\n\n3. **Close > 0**: This condition ensures that only stocks with positive closing prices are considered for the strategy. In other words, it filters out any stocks that have experienced a price drop to zero or below.\n\nOverall, this strategy is designed to identify oversold stocks that are showing signs of accumulation by institutional investors, which could indicate a potential rebound in their prices. By combining these conditions, the strategy aims to help investors find undervalued stocks with strong buying interest."
+  }
+}
